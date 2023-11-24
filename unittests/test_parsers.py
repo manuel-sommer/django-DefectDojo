@@ -1,5 +1,6 @@
 from .dojo_test_case import DojoTestCase, get_unit_tests_path
 import os
+import re
 
 basedir = os.path.join(get_unit_tests_path(), '..')
 
@@ -59,23 +60,24 @@ class TestParsers(DojoTestCase):
                             os.path.isfile(importer_test_file),
                             f"Unittest of importer '{importer_test_file}' is missing or using different name"
                         )
+
             for file in os.scandir(os.path.join(basedir, 'dojo', 'tools', parser_dir.name)):
-                if file.is_file() and file.name != '__pycache__' and file.name != "__init__.py":
+                if file.is_file() and file.name not in ['__pycache__', "__init__.py"]:
                     f = os.path.join(basedir, 'dojo', 'tools', parser_dir.name, file.name)
-                    import subprocess
-                    task = subprocess.Popen(["cat", f], stdout=subprocess.PIPE)
                     read_true = False
-                    for line in task.stdout:
-                        if read_true is True:
-                            if ('"utf-8"' in str(line) or "'utf-8'" in str(line) or '"utf-8-sig"' in str(line) or "'utf-8-sig'" in str(line)) and i <= 4:
-                                read_true = False
-                                i = 0
-                            elif i > 4:
-                                self.assertTrue(False, "In file " + str(os.path.join('dojo', 'tools', parser_dir.name, file.name)) + " the test is failing because you don't have utf-8 after .read()")
-                                i = 0
-                                read_true = False
-                            else:
-                                i += 1
-                        if ".read()" in str(line):
-                            read_true = True
-                            i = 0
+                    with self.subTest(parser=parser_dir.name, category='read()'):
+                        with open(f) as fp:
+                            for line in fp:
+                                if read_true:
+                                    if (re.search(r"[\"']utf-8(-sig)?[\"']", line)) and i <= 4:
+                                        read_true = False
+                                        i = 0
+                                    elif i > 4:
+                                        self.assertTrue(False, f"In file {f}, the test is failing because you don't have utf-8 after .read()")
+                                        i = 0
+                                        read_true = False
+                                    else:
+                                        i += 1
+                                if ".read()" in line:
+                                    read_true = True
+                                    i = 0
